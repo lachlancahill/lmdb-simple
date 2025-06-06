@@ -39,24 +39,6 @@ lmdb-simple/
   • Optional `transaction(write: bool)` context manager for batch writes
   • Full type hints and docstrings on public methods
 
-### 4. Multiprocessing‐Reader Helper (`lmdb_simple/pool.py`)
-
-Provide a helper for safely using LMDB readers in a `multiprocessing.Pool`:
-
-```python
-def make_reader_pool(
-    path: Union[str, Path],
-    processes: int,
-    env_kwargs: Optional[Dict[str, Any]] = None
-) -> multiprocessing.Pool:
-    """
-    Return a Pool whose workers each initialize a module‐level LmdbDict reader.
-    """
-    ...
-```
-
-Internally use `Pool(initializer=..., initargs=(path, env_kwargs))`, with 
-a worker‐side `init_reader` that opens `lmdb_simple.core.LmdbDict` in read mode.
 
 ### 5. Packaging (`setup.py`)
 
@@ -115,20 +97,6 @@ with LmdbDict("path/to/db") as db:
         print(key, value)
 ```
 
-Multiprocessing reader pool:
-```python
-from lmdb_simple.pool import make_reader_pool, lmdb_reader
 
-def worker(key):
-    # each worker has lmdb_reader initialized in read-only mode
-    return lmdb_reader[key]
-
-pool = make_reader_pool("path/to/db", processes=4)
-keys = ["foo", b"bytes", 1]
-results = pool.map(worker, keys)
-pool.close()
-pool.join()
-print(results)
-```
 
 
