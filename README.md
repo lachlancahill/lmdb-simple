@@ -5,8 +5,8 @@
 This document outlines the implementation and packaging plan for the 
 `lmdb-simple` Python package, targeting Python 3.9+ and designed to be 
 OS-agnostic. The package will provide a dict-like interface on top of 
-an LMDB disk store, with context-manager support and a multiprocessing‐
-reader helper.
+an LMDB disk store, with context-manager support and fork-safe
+multiprocessing readers (picklable LmdbDict instances).
 
 ### 1. Project Layout
 
@@ -101,11 +101,19 @@ with LmdbDict("path/to/db") as db:
 from lmdb_simple.core import LmdbDict
 from multiprocessing import Pool
 
-db = LmdbDict("path/to/db")  # read-only by default
-keys = [...]
+TEST_DB_PATH = "path/to/db"
 
-with Pool(processes=4) as pool:
-    results = pool.map(db.__getitem__, keys)
+# Create the reader at module level so that each worker process
+# will reuse the same LMDB environment when unpickled.
+reader = LmdbDict(TEST_DB_PATH)
 
-print(results)
+def reader_worker(key):
+    return reader[key]
+
+if __name__ == "__main__":
+    keys = [...]
+
+    with Pool(processes=4) as pool:
+        for result in pool.imap_unordered(reader_worker, keys):
+            print(result)
 ```
