@@ -4,12 +4,7 @@ from multiprocessing import Pool
 
 TEST_DB_PATH = 'test.db'
 
-global test_reader_dict
-test_reader_dict = None
-
-def on_process_init():
-    global test_reader_dict
-    test_reader_dict = LmdbDict(TEST_DB_PATH)
+test_reader_dict = LmdbDict(TEST_DB_PATH)
 
 def reader_worker_test(key_to_read):
     val_returned = test_reader_dict[key_to_read]
@@ -33,7 +28,7 @@ def main():
     for k, v in dict_to_write.items():
         test_writer_dict[k] = v
 
-    with Pool(2, initializer=on_process_init) as p:
+    with Pool(2) as p:
         for val_returned in p.imap_unordered(reader_worker_test, list(dict_to_write.keys())):
             print(f"{val_returned=}")
 

@@ -74,6 +74,16 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
             **self.env_kwargs,
         )
 
+    def __getstate__(self) -> dict[str, Any]:
+        """Support pickling: drop live env on pickle, reopen on unpickle."""
+        state = self.__dict__.copy()
+        state['env'] = None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self._open_env()
+
     def __getitem__(self, key: K) -> V:
         if self.env is None:
             raise RuntimeError("Environment is not open")

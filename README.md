@@ -10,7 +10,7 @@ reader helper.
 
 ### 1. Project Layout
 
-```
+```plaintext
 lmdb-simple/
 ├── LICENSE
 ├── MANIFEST.in
@@ -18,8 +18,7 @@ lmdb-simple/
 ├── setup.py
 └── lmdb_simple/
     ├── __init__.py
-    ├── core.py
-    └── pool.py
+    └── core.py
 ```
 
 ### 2. Dependencies
@@ -52,8 +51,7 @@ lmdb-simple/
 ### 6. Documentation & Examples
 
 - Flesh out `README.md` (this file) with:
-  - Quickstart examples for reader/writer and context managers
-  - Multiprocessing‐pool example
+  - Quickstart examples for reader/writer, context managers, and multiprocessing
   - API reference links to docstrings
 
 ### 7. OS‐Agnostic Considerations
@@ -97,6 +95,17 @@ with LmdbDict("path/to/db") as db:
         print(key, value)
 ```
 
+### Multiprocessing
 
+```python
+from lmdb_simple.core import LmdbDict
+from multiprocessing import Pool
 
+db = LmdbDict("path/to/db")  # read-only by default
+keys = [...]
 
+with Pool(processes=4) as pool:
+    results = pool.map(db.__getitem__, keys)
+
+print(results)
+```
