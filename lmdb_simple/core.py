@@ -12,19 +12,44 @@ from typing import (
     ContextManager,
 )
 
+import pickle
+
 K = TypeVar("K")
 V = TypeVar("V")
 
+# Internal serialization prefixes for raw bytes vs pickled objects
+_RAW_PREFIX: bytes = b'\x00'
+_PICKLE_PREFIX: bytes = b'\x01'
+
 class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K, V]):
     """
-    LMDB-backed dict-like store.
+    LMDB-backed dict-like store with transparent serialization.
 
     Example:
         with LmdbDict("data.mdb", writer=True) as db:
-            db[b"key"] = b"value"
+            db["key"] = "value"
+            db[b"raw"] = b"bytes"
+            db[1] = {"nested": [1, 2, 3]}
         with LmdbDict("data.mdb") as db:
-            print(db[b"key"])
+            print(db["key"])   # "value"
+            print(db[b"raw"])   # b"bytes"
+            print(db[1])         # {"nested": [1, 2, 3]}
     """
+    def _serialize(self, obj: Any) -> bytes:
+        """Serialize a Python object to bytes with internal prefix."""
+        if isinstance(obj, bytes):
+            return _RAW_PREFIX + obj
+        return _PICKLE_PREFIX + pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def _deserialize(self, data: bytes) -> Any:
+        """Deserialize bytes with internal prefix back to a Python object."""
+        tag = data[:1]
+        if tag == _RAW_PREFIX:
+            return data[1:]
+        if tag == _PICKLE_PREFIX:
+            return pickle.loads(data[1:])
+        return data
+
     def __init__(
         self,
         path: Union[str, Path],
@@ -52,23 +77,27 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
     def __getitem__(self, key: K) -> V:
         if self.env is None:
             raise RuntimeError("Environment is not open")
+        skey = self._serialize(key)
         with self.env.begin(write=False) as txn:
-            value = txn.get(key)  # type: ignore
-        if value is None:
+            raw = txn.get(skey)  # type: ignore
+        if raw is None:
             raise KeyError(key)  # type: ignore
-        return value  # type: ignore
+        return self._deserialize(raw)  # type: ignore
 
     def __setitem__(self, key: K, value: V) -> None:
         if not self.writer or self.env is None:
             raise RuntimeError("Database not opened for writing")
+        skey = self._serialize(key)
+        svalue = self._serialize(value)
         with self.env.begin(write=True) as txn:
-            txn.put(key, value)  # type: ignore
+            txn.put(skey, svalue)  # type: ignore
 
     def __delitem__(self, key: K) -> None:
         if not self.writer or self.env is None:
             raise RuntimeError("Database not opened for writing")
+        skey = self._serialize(key)
         with self.env.begin(write=True) as txn:
-            success = txn.delete(key)  # type: ignore
+            success = txn.delete(skey)  # type: ignore
         if not success:
             raise KeyError(key)
 
@@ -77,8 +106,8 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
             raise RuntimeError("Environment is not open")
         with self.env.begin(write=False) as txn:
             cursor = txn.cursor()
-            for k, _ in cursor:
-                yield k  # type: ignore
+            for sk, _ in cursor:
+                yield self._deserialize(sk)  # type: ignore
 
     def __len__(self) -> int:
         if self.env is None:
@@ -95,16 +124,16 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
             raise RuntimeError("Environment is not open")
         with self.env.begin(write=False) as txn:
             cursor = txn.cursor()
-            for _, v in cursor:
-                yield v  # type: ignore
+            for _, sv in cursor:
+                yield self._deserialize(sv)  # type: ignore
 
     def items(self) -> Iterator[tuple[K, V]]:
         if self.env is None:
             raise RuntimeError("Environment is not open")
         with self.env.begin(write=False) as txn:
             cursor = txn.cursor()
-            for k, v in cursor:
-                yield k, v  # type: ignore
+            for sk, sv in cursor:
+                yield self._deserialize(sk), self._deserialize(sv)  # type: ignore
 
     def flush(self) -> None:
         """Force sync to disk."""

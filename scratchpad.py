@@ -33,8 +33,8 @@ def main():
     for k, v in dict_to_write.items():
         test_writer_dict[k] = v
 
-    with Pool(2) as p:
-        for val_returned in p.imap_unordered(reader_worker_test, dict_to_write.keys()):
+    with Pool(2, initializer=on_process_init) as p:
+        for val_returned in p.imap_unordered(reader_worker_test, list(dict_to_write.keys())):
             print(f"{val_returned=}")
 
 if __name__ == '__main__':

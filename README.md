@@ -102,14 +102,15 @@ from lmdb_simple.core import LmdbDict
 
 # Writer mode: open (and create if needed) for writing
 with LmdbDict("path/to/db", writer=True, map_size=10_000_000) as db:
-    db[b"foo"] = b"bar"
-    # batch writes via transaction
-    with db.transaction(write=True) as txn:
-        txn.put(b"hello", b"world")
+    db["foo"] = "bar"                # store strings
+    db[b"bytes"] = b"raw bytes"      # store raw bytes
+    db[1] = {"nested": [1, 2, 3]}     # store arbitrary Python objects
 
 # Reader mode: open for read-only
 with LmdbDict("path/to/db") as db:
-    print(db[b"foo"])        # b"bar"
+    print(db["foo"])                 # "bar"
+    print(db[b"bytes"])              # b"raw bytes"
+    print(db[1])                       # {"nested": [1, 2, 3]}
     for key, value in db.items():
         print(key, value)
 ```
@@ -118,12 +119,12 @@ Multiprocessing reader pool:
 ```python
 from lmdb_simple.pool import make_reader_pool, lmdb_reader
 
-def worker(key: bytes) -> bytes:
-    # each worker has lmdb_reader initialized
+def worker(key):
+    # each worker has lmdb_reader initialized in read-only mode
     return lmdb_reader[key]
 
 pool = make_reader_pool("path/to/db", processes=4)
-keys = [b"foo", b"hello"]
+keys = ["foo", b"bytes", 1]
 results = pool.map(worker, keys)
 pool.close()
 pool.join()
