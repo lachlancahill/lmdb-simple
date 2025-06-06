@@ -15,7 +15,7 @@ from typing import (
 K = TypeVar("K")
 V = TypeVar("V")
 
-class LmdbDict(MutableMapping[K, V], ContextManager[LmdbDict[K, V]], Generic[K, V]):
+class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K, V]):
     """
     LMDB-backed dict-like store.
 
@@ -45,7 +45,7 @@ class LmdbDict(MutableMapping[K, V], ContextManager[LmdbDict[K, V]], Generic[K, 
         self.env = lmdb.open(
             str(self.path),
             readonly=not self.writer,
-            create=self.writer,
+            # create=self.writer,
             **self.env_kwargs,
         )
 
