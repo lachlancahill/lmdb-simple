@@ -29,7 +29,7 @@ lmdb-simple/
 ### 3. Core API (`lmdb_simple/core.py`)
 
 - `class LmdbDict[K, V]` (implements `MutableMapping[K, V]` and `ContextManager`)
-  • `__init__(self, path: Union[str, Path], writer: bool = False, **env_kwargs)`
+  • `__init__(self, path: Union[str, Path], writer: bool = False, map_size_gb: float = 1.0, **env_kwargs)`
   • Mapping methods: `__getitem__`, `__setitem__`, `__delitem__`, `__len__`, `__iter__`
   • Views: `keys()`, `values()`, `items()`
   • Sync/flush: `flush()`
@@ -81,7 +81,7 @@ Basic usage:
 from lmdb_simple.core import LmdbDict
 
 # Writer mode: open (and create if needed) for writing
-with LmdbDict("path/to/db", writer=True, map_size=10_000_000) as db:
+with LmdbDict("path/to/db", writer=True, map_size_gb=1.0) as db:
     db["foo"] = "bar"                # store strings
     db[b"bytes"] = b"raw bytes"      # store raw bytes
     db[1] = {"nested": [1, 2, 3]}     # store arbitrary Python objects

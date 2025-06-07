@@ -54,13 +54,24 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
         self,
         path: Union[str, Path],
         writer: bool = False,
+        map_size_gb: float = 1.0,
         **env_kwargs: Any,
     ) -> None:
+        """
+        Initialize an LMDB-backed dict store.
+
+        :param path: Filesystem path for the LMDB environment.
+        :param writer: Open for write access if True, else read-only.
+        :param map_size_gb: Initial map size for the environment in gibibytes.
+            Ignored if 'map_size' is specified directly in env_kwargs.
+        :param env_kwargs: Additional keyword arguments passed to lmdb.open().
+        """
         self.path = Path(path)
         self.writer = writer
         # Ensure environment directory exists when writing
-        if self.writer:
-            self.path.mkdir(parents=True, exist_ok=True)
+        self.path.mkdir(parents=True, exist_ok=True)
+        if 'map_size' not in env_kwargs:
+            env_kwargs['map_size'] = int(map_size_gb * 1024 ** 3)
         self.env_kwargs = env_kwargs
         self.env: Optional[lmdb.Environment] = None
         self._open_env()
@@ -73,6 +84,17 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
             # create=self.writer,
             **self.env_kwargs,
         )
+
+    def _increase_map_size(self, factor: int = 2) -> None:
+        """
+        Increase the LMDB environment map size by a multiplier (default: double).
+        """
+        if self.env is None:
+            return
+        info = self.env.info()
+        current = info.get('map_size', 0)
+        new_size = current * factor
+        self.env.set_mapsize(new_size)
 
     def __getstate__(self) -> dict[str, Any]:
         """Support pickling: drop live env on pickle, reopen on unpickle."""
@@ -99,8 +121,13 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
             raise RuntimeError("Database not opened for writing")
         skey = self._serialize(key)
         svalue = self._serialize(value)
-        with self.env.begin(write=True) as txn:
-            txn.put(skey, svalue)  # type: ignore
+        try:
+            with self.env.begin(write=True) as txn:
+                txn.put(skey, svalue)  # type: ignore
+        except lmdb.MapFullError:
+            self._increase_map_size()
+            with self.env.begin(write=True) as txn:
+                txn.put(skey, svalue)  # type: ignore
 
     def __delitem__(self, key: K) -> None:
         if not self.writer or self.env is None:
