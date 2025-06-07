@@ -43,7 +43,7 @@ lmdb-simple/
 
 - `name="lmdb-simple"`, `version="0.1.0"`
 - `python_requires=">=3.9"`
-- `install_requires=["lmdb>=1.0.0"]`
+- `install_requires=["lmdb>=1.6.2"]`
 - Read long description from `README.md`
 - Include license, classifiers, and `find_packages()`
 - `MANIFEST.in` to include `README.md` and `LICENSE`
