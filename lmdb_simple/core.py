@@ -70,11 +70,13 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
         self.writer = writer
         # Ensure environment directory exists when writing
         self.path.mkdir(parents=True, exist_ok=True)
-        if 'map_size' not in env_kwargs:
-            env_kwargs['map_size'] = int(map_size_gb * 1024 ** 3)
         self.env_kwargs = env_kwargs
         self.env: Optional[lmdb.Environment] = None
         self._open_env()
+
+        target_map_size = int(map_size_gb * 1024 ** 3)
+        if self.env.info().get('map_size', 0) < target_map_size:
+            self.env.set_mapsize(target_map_size)
 
     def _open_env(self) -> None:
         """Open the LMDB environment."""
@@ -95,6 +97,8 @@ class LmdbDict(MutableMapping[K, V], ContextManager['LmdbDict[K, V]'], Generic[K
         current = info.get('map_size', 0)
         new_size = current * factor
         self.env.set_mapsize(new_size)
+        print(f"INFO: Doubled map size to {new_size} bytes.")
+
 
     def __getstate__(self) -> dict[str, Any]:
         """Support pickling: drop live env on pickle, reopen on unpickle."""
